@@ -76,7 +76,7 @@ void main() {
       widget: AutoSizeText(
         'Some Text',
         style: TextStyle(fontSize: 15),
-        textScaleFactor: 4,
+        textScaler: TextScaler.linear(4),
       ),
     );
   });
@@ -91,5 +91,27 @@ void main() {
       ),
     );
     expect(text.key, textKey);
+  });
+
+  testWidgets('Passes semanticsIdentifier to Text', (tester) async {
+    final text = await pumpAndGetText(
+      tester: tester,
+      widget: AutoSizeText(
+        'Text with semantics identifier',
+        semanticsIdentifier: 'auto_size_text_identifier',
+      ),
+    );
+    expect(text.semanticsIdentifier, 'auto_size_text_identifier');
+  });
+
+  testWidgets('Passes semanticsIdentifier to Text.rich', (tester) async {
+    final text = await pumpAndGetText(
+      tester: tester,
+      widget: AutoSizeText.rich(
+        TextSpan(text: 'Rich text with semantics identifier'),
+        semanticsIdentifier: 'auto_size_text_rich_identifier',
+      ),
+    );
+    expect(text.semanticsIdentifier, 'auto_size_text_rich_identifier');
   });
 }
