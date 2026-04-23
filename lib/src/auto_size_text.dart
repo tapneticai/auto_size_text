@@ -29,9 +29,10 @@ class AutoSizeText extends StatefulWidget {
     this.wrapWords = true,
     this.overflow,
     this.overflowReplacement,
-    this.textScaleFactor,
+    this.textScaler,
     this.maxLines,
     this.semanticsLabel,
+    this.semanticsIdentifier,
   })  : textSpan = null,
         super(key: key);
 
@@ -54,9 +55,10 @@ class AutoSizeText extends StatefulWidget {
     this.wrapWords = true,
     this.overflow,
     this.overflowReplacement,
-    this.textScaleFactor,
+    this.textScaler,
     this.maxLines,
     this.semanticsLabel,
+    this.semanticsIdentifier,
   })  : data = null,
         super(key: key);
 
@@ -176,17 +178,14 @@ class AutoSizeText extends StatefulWidget {
   /// displayed instead.
   final Widget? overflowReplacement;
 
-  /// The number of font pixels for each logical pixel.
-  ///
-  /// For example, if the text scale factor is 1.5, text will be 50% larger than
-  /// the specified font size.
+  /// The text scaler to use for scaling the text.
   ///
   /// This property also affects [minFontSize], [maxFontSize] and [presetFontSizes].
   ///
-  /// The value given to the constructor as textScaleFactor. If null, will
-  /// use the [MediaQueryData.textScaleFactor] obtained from the ambient
-  /// [MediaQuery], or 1.0 if there is no [MediaQuery] in scope.
-  final double? textScaleFactor;
+  /// The value given to the constructor as textScaler. If null, will
+  /// use the [MediaQueryData.textScaler] obtained from the ambient
+  /// [MediaQuery], or [TextScaler.noScaling] if there is no [MediaQuery] in scope.
+  final TextScaler? textScaler;
 
   /// An optional maximum number of lines for the text to span, wrapping if necessary.
   /// If the text exceeds the given number of lines, it will be resized according
@@ -214,6 +213,12 @@ class AutoSizeText extends StatefulWidget {
   /// AutoSizeText(r'$$', semanticsLabel: 'Double dollars')
   /// ```
   final String? semanticsLabel;
+
+  /// A unique identifier for the semantics node for this widget.
+  ///
+  /// This can be used by automation tools to identify the text widget without
+  /// relying on the visible text content.
+  final String? semanticsIdentifier;
 
   @override
   _AutoSizeTextState createState() => _AutoSizeTextState();
@@ -308,14 +313,13 @@ class _AutoSizeTextState extends State<AutoSizeText> {
   List _calculateFontSize(
       BoxConstraints size, TextStyle? style, int? maxLines) {
     final span = TextSpan(
-      style: widget.textSpan?.style ?? style,
-      text: widget.textSpan?.text ?? widget.data,
-      children: widget.textSpan?.children,
-      recognizer: widget.textSpan?.recognizer,
+      style: style,
+      children: [
+        widget.textSpan ?? TextSpan(text: widget.data),
+      ],
     );
 
-    final userScale =
-        widget.textScaleFactor ?? MediaQuery.textScaleFactorOf(context);
+    final userScaler = widget.textScaler ?? MediaQuery.textScalerOf(context);
 
     int left;
     int right;
@@ -324,9 +328,10 @@ class _AutoSizeTextState extends State<AutoSizeText> {
     if (presetFontSizes == null) {
       final num defaultFontSize =
           style!.fontSize!.clamp(widget.minFontSize, widget.maxFontSize);
-      final defaultScale = defaultFontSize * userScale / style.fontSize!;
+      final defaultScale =
+          userScaler.scale(defaultFontSize.toDouble()) / style.fontSize!;
       if (_checkTextFits(span, defaultScale, maxLines, size)) {
-        return <Object>[defaultFontSize * userScale, true];
+        return <Object>[userScaler.scale(defaultFontSize.toDouble()), true];
       }
 
       left = (widget.minFontSize / widget.stepGranularity).floor();
@@ -341,9 +346,10 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       final mid = (left + (right - left) / 2).floor();
       double scale;
       if (presetFontSizes == null) {
-        scale = mid * userScale * widget.stepGranularity / style!.fontSize!;
+        scale =
+            userScaler.scale(mid * widget.stepGranularity) / style!.fontSize!;
       } else {
-        scale = presetFontSizes[mid] * userScale / style!.fontSize!;
+        scale = userScaler.scale(presetFontSizes[mid]) / style!.fontSize!;
       }
       if (_checkTextFits(span, scale, maxLines, size)) {
         left = mid + 1;
@@ -359,9 +365,9 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
     double fontSize;
     if (presetFontSizes == null) {
-      fontSize = right * userScale * widget.stepGranularity;
+      fontSize = userScaler.scale(right * widget.stepGranularity);
     } else {
-      fontSize = presetFontSizes[right] * userScale;
+      fontSize = userScaler.scale(presetFontSizes[right]);
     }
 
     return <Object>[fontSize, lastValueFits];
@@ -369,6 +375,8 @@ class _AutoSizeTextState extends State<AutoSizeText> {
 
   bool _checkTextFits(
       TextSpan text, double scale, int? maxLines, BoxConstraints constraints) {
+    final textScaler = TextScaler.linear(scale);
+
     if (!widget.wrapWords) {
       final words = text.toPlainText().split(RegExp('\\s+'));
 
@@ -379,7 +387,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
         ),
         textAlign: widget.textAlign ?? TextAlign.left,
         textDirection: widget.textDirection ?? TextDirection.ltr,
-        textScaleFactor: scale,
+        textScaler: textScaler,
         maxLines: words.length,
         locale: widget.locale,
         strutStyle: widget.strutStyle,
@@ -397,7 +405,7 @@ class _AutoSizeTextState extends State<AutoSizeText> {
       text: text,
       textAlign: widget.textAlign ?? TextAlign.left,
       textDirection: widget.textDirection ?? TextDirection.ltr,
-      textScaleFactor: scale,
+      textScaler: textScaler,
       maxLines: maxLines,
       locale: widget.locale,
       strutStyle: widget.strutStyle,
@@ -422,9 +430,10 @@ class _AutoSizeTextState extends State<AutoSizeText> {
         locale: widget.locale,
         softWrap: widget.softWrap,
         overflow: widget.overflow,
-        textScaleFactor: 1,
+        textScaler: TextScaler.noScaling,
         maxLines: maxLines,
         semanticsLabel: widget.semanticsLabel,
+        semanticsIdentifier: widget.semanticsIdentifier,
       );
     } else {
       return Text.rich(
@@ -437,9 +446,10 @@ class _AutoSizeTextState extends State<AutoSizeText> {
         locale: widget.locale,
         softWrap: widget.softWrap,
         overflow: widget.overflow,
-        textScaleFactor: fontSize / style.fontSize!,
+        textScaler: TextScaler.linear(fontSize / style.fontSize!),
         maxLines: maxLines,
         semanticsLabel: widget.semanticsLabel,
+        semanticsIdentifier: widget.semanticsIdentifier,
       );
     }
   }
